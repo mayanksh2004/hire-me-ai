@@ -6,7 +6,7 @@ function Login({ setToken }) {
 
   const handleLogin = async () => {
     try {
-      const res = await fetch("http://localhost:5000/api/auth/login", {
+      const res = await fetch("https://your-backend-url.onrender.com/api/jobs", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
