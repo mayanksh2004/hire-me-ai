@@ -1,68 +1,92 @@
 import Application from "../models/Application.js";
-import Job from "../models/Job.js";
 
+// APPLY TO JOB
 export const applyToJob = async (req, res) => {
   try {
     const jobId = req.params.id;
-    const existing = await Application.findOne({ user: req.user._id, job: jobId });
-    if (existing) return res.status(400).json({ message: "Already applied to this job" });
+
+    if (!jobId) {
+      return res.status(400).json({ message: "Job ID is required" });
+    }
+
+    // check duplicate
+    const alreadyApplied = await Application.findOne({
+      user: req.user._id,
+      job: jobId,
+    });
+
+    if (alreadyApplied) {
+      return res.status(400).json({ message: "Already applied to this job" });
+    }
 
     const application = await Application.create({
       user: req.user._id,
       job: jobId,
-      coverLetter: req.body.coverLetter || "",
-      timeline: [{ status: "pending", date: Date.now(), note: "Application submitted" }]
+      status: "pending",
     });
 
-    await application.populate("user", "name email");
-    await application.populate("job", "title company");
-    res.status(201).json({ message: "Applied successfully", application });
+    res.status(201).json({
+      message: "Applied successfully",
+      application,
+    });
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
+// GET MY APPLICATIONS (for jobseekers)
 export const getMyApplications = async (req, res) => {
   try {
-    const applications = await Application.find({ user: req.user._id }).populate("job", "title company location salary jobType").sort({ createdAt: -1 });
+    const applications = await Application.find({ user: req.user._id })
+      .populate("job", "title company description");
     res.json(applications);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-export const getJobApplications = async (req, res) => {
-  try {
-    const applications = await Application.find({ job: req.params.jobId }).populate("user", "name email phone location skills bio").sort({ createdAt: -1 });
-    res.json(applications);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
+// GET ALL APPLICATIONS (for recruiters only)
 export const getAllApplications = async (req, res) => {
   try {
-    const jobs = await Job.find({ postedBy: req.user._id });
-    const jobIds = jobs.map(j => j._id);
-    const applications = await Application.find({ job: { $in: jobIds } }).populate("user", "name email").populate("job", "title company").sort({ createdAt: -1 });
+    if (req.user.role !== "recruiter") {
+      return res.status(403).json({ message: "Access denied. Recruiters only." });
+    }
+    const applications = await Application.find()
+      .populate("user", "name email")
+      .populate("job", "title company");
     res.json(applications);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
+// UPDATE APPLICATION STATUS (for recruiters)
 export const updateApplicationStatus = async (req, res) => {
   try {
-    const { status, note } = req.body;
-    const application = await Application.findOne({ _id: req.params.id, job: { $in: await Job.find({ postedBy: req.user._id }).select("_id") } });
-    if (!application) return res.status(404).json({ message: "Application not found" });
+    if (req.user.role !== "recruiter") {
+      return res.status(403).json({ message: "Access denied. Recruiters only." });
+    }
+
+    const { status } = req.body;
+    const validStatuses = ["pending", "accepted", "rejected"];
+
+    if (!status || !validStatuses.includes(status)) {
+      return res.status(400).json({ message: "Invalid status. Must be pending, accepted, or rejected" });
+    }
+
+    const application = await Application.findById(req.params.id);
+
+    if (!application) {
+      return res.status(404).json({ message: "Application not found" });
+    }
 
     application.status = status;
-    application.notes = note || "";
-    application.timeline.push({ status, note: note || `Status changed to ${status}`, date: Date.now() });
     await application.save();
-    res.json({ message: "Status updated", application });
+
+    res.json({ message: `Application ${status}`, application });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
+
