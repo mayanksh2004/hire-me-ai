@@ -1,15 +1,13 @@
 import express from "express";
-import { createJob, getJobs } from "../controllers/jobController.js";
+import { createJob, getJobs, getJobById, updateJob, deleteJob, getMyJobs } from "../controllers/jobController.js";
 import protect from "../middleware/authMiddleware.js";
 
 const router = express.Router();
-
-router.post("/", protect, createJob);
 router.get("/", getJobs);
-router.get("/my-jobs", protect, async (req, res) => {
-  const Job = (await import("../models/Job.js")).default;
-  const jobs = await Job.find({ postedBy: req.user._id }).populate("postedBy", "name email");
-  res.json(jobs);
-});
+router.get("/my-jobs", protect, getMyJobs);
+router.get("/:id", getJobById);
+router.post("/", protect, createJob);
+router.put("/:id", protect, updateJob);
+router.delete("/:id", protect, deleteJob);
 
 export default router;
