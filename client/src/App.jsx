@@ -10,6 +10,7 @@ function App() {
   const [darkMode, setDarkMode] = useState(localStorage.getItem("darkMode") === "true");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [showAuth, setShowAuth] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
   const [authForm, setAuthForm] = useState({ name: "", email: "", password: "", role: "jobseeker" });
@@ -54,17 +55,20 @@ function App() {
   const handleAuth = async (e) => {
     e.preventDefault(); setLoading(true); setError("");
     try { const res = await fetch(`${API_URL}/api/auth/${isLogin ? "login" : "register"}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(authForm) });
-      const data = await res.json(); if (res.ok) { localStorage.setItem("token", data.token); setToken(data.token); setUser(data.user); setShowAuth(false); } else setError(data.message);
-    } catch (err) { setError("Network error"); } setLoading(false);
+      const data = await res.json(); if (res.ok) { localStorage.setItem("token", data.token); setToken(data.token); setUser(data.user); setShowAuth(false); showSuccess(isLogin ? "Welcome back! 🎉" : "Account created! 🚀"); } else showError(data.message);
+    } catch (err) { showError("Network error. Please try again."); } setLoading(false);
   };
 
   const logout = () => { localStorage.removeItem("token"); setToken(""); setUser(null); setView("home"); };
+  const showSuccess = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(""), 4000); };
+  const showError = (msg) => { setError(msg); setTimeout(() => setError(""), 5000); };
+  const Spinner = () => <span className="spinner-border spinner-border-sm me-2" role="status"></span>;
 
-  const handlePostJob = async (e) => { e.preventDefault(); setLoading(true); try { const res = await fetch(`${API_URL}/api/jobs`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ ...selectedJob, title: selectedJob?.title, company: selectedJob?.company, description: selectedJob?.description, skillsRequired: selectedJob?.skills?.split(",").map(s => s.trim()) }) }); if (res.ok) { alert("Job posted!"); fetchMyJobs(); setView("my-jobs"); } } catch (err) { setError("Failed to post job"); } setLoading(false); };
-  const handleApply = async (jobId) => { if (!token) return setShowAuth(true); setLoading(true); try { const res = await fetch(`${API_URL}/api/applications/${jobId}`, { method: "POST", headers: { Authorization: `Bearer ${token}` } }); const data = await res.json(); alert(data.message); } catch (err) { setError("Failed to apply"); } setLoading(false); };
-  const handleUpdateProfile = async (e) => { e.preventDefault(); setLoading(true); try { const res = await fetch(`${API_URL}/api/auth/profile`, { method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(profile) }); if (res.ok) { alert("Profile updated!"); fetchUser(); } } catch (err) { setError("Failed to update"); } setLoading(false); };
+  const handlePostJob = async (e) => { e.preventDefault(); setLoading(true); try { const res = await fetch(`${API_URL}/api/jobs`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ ...selectedJob, title: selectedJob?.title, company: selectedJob?.company, description: selectedJob?.description, skillsRequired: selectedJob?.skills?.split(",").map(s => s.trim()) }) }); if (res.ok) { showSuccess("Job posted successfully! 🎉"); fetchMyJobs(); setView("my-jobs"); setSelectedJob({}); } else showError("Failed to post job"); } catch (err) { showError("Something went wrong"); } setLoading(false); };
+  const handleApply = async (jobId) => { if (!token) return setShowAuth(true); setLoading(true); try { const res = await fetch(`${API_URL}/api/applications/${jobId}`, { method: "POST", headers: { Authorization: `Bearer ${token}` } }); const data = await res.json(); if (res.ok) showSuccess("Application submitted! ✅"); else showError(data.message || "Failed to apply"); } catch (err) { showError("Something went wrong"); } setLoading(false); };
+  const handleUpdateProfile = async (e) => { e.preventDefault(); setLoading(true); try { const res = await fetch(`${API_URL}/api/auth/profile`, { method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(profile) }); if (res.ok) { showSuccess("Profile updated successfully! ✨"); fetchUser(); } else showError("Failed to update profile"); } catch (err) { showError("Something went wrong"); } setLoading(false); };
 
-  const handleAnalyzeResume = async () => { if (!resumeText && !resumeFile) return setError("Enter text or upload PDF"); setLoading(true); try { if (resumeFile) { const formData = new FormData(); formData.append("resume", resumeFile); const res = await fetch(`${API_URL}/api/ai/analyze-file`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: formData }); const data = await res.json(); setAiResult(data.result); } else { const res = await fetch(`${API_URL}/api/ai/analyze`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ resumeText }) }); const data = await res.json(); setAiResult(data.result); } } catch (err) { setError("Analysis failed"); } setLoading(false); };
+  const handleAnalyzeResume = async () => { if (!resumeText && !resumeFile) return showError("Please enter text or upload a PDF"); setLoading(true); try { if (resumeFile) { const formData = new FormData(); formData.append("resume", resumeFile); const res = await fetch(`${API_URL}/api/ai/analyze-file`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: formData }); const data = await res.json(); if (res.ok) { setAiResult(data.result); showSuccess("Resume analyzed! 📊"); } else showError(data.message); } else { const res = await fetch(`${API_URL}/api/ai/analyze`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ resumeText }) }); const data = await res.json(); if (res.ok) { setAiResult(data.result); showSuccess("Resume analyzed! 📊"); } else showError(data.message); } } catch (err) { showError("Analysis failed. Please try again."); } setLoading(false); };
 
   const sendChatMessage = async () => { if (!chatInput.trim()) return; const userMsg = { from: "user", text: chatInput }; setChatMessages(prev => [...prev, userMsg]); setChatInput(""); setLoading(true); try { const res = await fetch(`${API_URL}/api/ai/doodle`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ message: chatInput, history: chatMessages }) }); const data = await res.json(); setChatMessages(prev => [...prev, { from: "bot", text: data.response }]); } catch (err) { setChatMessages(prev => [...prev, { from: "bot", text: "Oops! Something went wrong. Try again! 😅" }]); } setLoading(false); };
 
@@ -163,11 +167,32 @@ function App() {
     body.dark .table thead { background: linear-gradient(135deg, #7c2d12, #9a3412); }
     
     .fade-in { animation: fadeIn 0.5s ease; }
+    
+    .toast-container { position: fixed; top: 100px; right: 20px; z-index: 9999; }
+    .toast-msg { padding: 16px 24px; border-radius: 12px; margin-bottom: 10px; animation: slideIn 0.3s ease; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+    .toast-success { background: linear-gradient(135deg, #22c55e, #16a34a); color: white; }
+    .toast-error { background: linear-gradient(135deg, #ef4444, #dc2626); color: white; }
+    .toast-loading { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } }
+    
+    .loading-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+    .loading-spinner { width: 50px; height: 50px; border: 5px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
   `};
 
   return (
     <>
       <style>{styles.css}</style>
+      
+      {/* Toast Notifications */}
+      <div className="toast-container">
+        {loading && <div className="toast-msg toast-loading d-flex align-items-center"><Spinner /> Processing...</div>}
+        {error && <div className="toast-msg toast-error d-flex align-items-center"><span className="me-2">⚠️</span>{error}<button className="btn-close btn-close-white ms-3" onClick={() => setError("")}></button></div>}
+        {success && <div className="toast-msg toast-success d-flex align-items-center"><span className="me-2">✅</span>{success}<button className="btn-close btn-close-white ms-3" onClick={() => setSuccess("")}></button></div>}
+      </div>
+
+      {/* Loading Overlay */}
+      {loading && <div className="loading-overlay"><div className="loading-spinner"></div></div>}
       <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
 
